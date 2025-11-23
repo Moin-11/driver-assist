@@ -71,7 +71,10 @@ const FeedbackHistory = () => {
   // Apply filters
   const filteredHistory = feedbackHistory.filter(item => {
     const moduleMatch = selectedModules.includes(item.module);
-    const severityMatch = item.severity ? selectedSeverities.includes(item.severity) : true;
+    // Only include items that have a severity AND it's selected
+    // If item has no severity, default to 'low' for filtering
+    const itemSeverity = item.severity || 'low';
+    const severityMatch = selectedSeverities.includes(itemSeverity);
     return moduleMatch && severityMatch;
   });
 

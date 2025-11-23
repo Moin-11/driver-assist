@@ -10,99 +10,25 @@ export const useFeedback = () => {
   return context;
 };
 
-// Dummy feedback data for initial demonstration
-const dummyFeedback = [
-  {
-    id: 1700000001,
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), // 2 hours ago
-    module: 'Brake Checking',
-    eventType: 'hard',
-    message: '⚠️ HARD BRAKING DETECTED at 45 mph! Maintain safe following distance.',
-    speed: 45,
-    force: 85,
-    severity: 'high',
-  },
-  {
-    id: 1700000002,
-    timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), // 4 hours ago
-    module: 'Speed Monitoring',
-    eventType: 'Red Light',
-    message: '🔴 Red light! Stop before intersection.',
-    action: 'STOP',
-    distance: 120,
-    severity: 'moderate',
-  },
-  {
-    id: 1700000003,
-    timestamp: new Date(Date.now() - 3600000 * 6).toISOString(), // 6 hours ago
-    module: 'Lane Change Detection',
-    eventType: 'Center to Right',
-    message: '⚠️ Lane change WITHOUT signal! Moved from Center to Right lane. Use turn signals!',
-    signalUsed: false,
-    safetyScore: 35,
-    severity: 'high',
-  },
-  {
-    id: 1700000004,
-    timestamp: new Date(Date.now() - 3600000 * 8).toISOString(), // 8 hours ago
-    module: 'Brake Checking',
-    eventType: 'moderate',
-    message: '⚡ Moderate braking at 55 mph. Monitor traffic ahead.',
-    speed: 55,
-    force: 60,
-    severity: 'moderate',
-  },
-  {
-    id: 1700000005,
-    timestamp: new Date(Date.now() - 3600000 * 10).toISOString(), // 10 hours ago
-    module: 'Speed Monitoring',
-    eventType: 'Stop Sign',
-    message: '🛑 Stop sign ahead! Come to complete stop.',
-    action: 'STOP',
-    distance: 85,
-    severity: 'high',
-  },
-  {
-    id: 1700000006,
-    timestamp: new Date(Date.now() - 3600000 * 12).toISOString(), // 12 hours ago
-    module: 'Lane Change Detection',
-    eventType: 'Left to Center',
-    message: '✓ Safe lane change from Left to Center lane with signal. Good job!',
-    signalUsed: true,
-    safetyScore: 92,
-    severity: 'low',
-  },
-  {
-    id: 1700000007,
-    timestamp: new Date(Date.now() - 3600000 * 14).toISOString(), // 14 hours ago
-    module: 'Brake Checking',
-    eventType: 'light',
-    message: '✓ Gentle braking at 30 mph. Good control.',
-    speed: 30,
-    force: 25,
-    severity: 'low',
-  },
-  {
-    id: 1700000008,
-    timestamp: new Date(Date.now() - 3600000 * 16).toISOString(), // 16 hours ago
-    module: 'Speed Monitoring',
-    eventType: 'School Zone',
-    message: '🏫 School zone ahead! Reduce speed to 25 mph.',
-    action: 'CAUTION',
-    distance: 200,
-    severity: 'low',
-  },
-];
-
 export const FeedbackProvider = ({ children }) => {
   const [feedbackHistory, setFeedbackHistory] = useState(() => {
     // Load from localStorage on initial render
     const saved = localStorage.getItem('driverAssistFeedback');
     if (saved) {
-      return JSON.parse(saved);
+      const events = JSON.parse(saved);
+      // Deduplicate events by id and timestamp to remove old duplicates
+      const uniqueEvents = events.reduce((acc, event) => {
+        const key = `${event.id}-${event.timestamp}`;
+        if (!acc.seen.has(key)) {
+          acc.seen.add(key);
+          acc.events.push(event);
+        }
+        return acc;
+      }, { seen: new Set(), events: [] }).events;
+      return uniqueEvents;
     }
-    // If no saved data, use dummy data
-    return dummyFeedback;
+    // Start with empty array - no dummy data
+    return [];
   });
 
   // Module-specific event states (persists across navigation)
@@ -152,11 +78,18 @@ export const FeedbackProvider = ({ children }) => {
         const data = JSON.parse(event.data);
         console.log('Received event:', data);
 
+        // Normalize the event data - use module name as eventType for better display
+        const normalizedData = {
+          ...data,
+          // Use module name as the display title, fallback to eventType or type
+          eventType: data.eventType || data.module || data.type || 'Event',
+        };
+
         // Add to feedback history with timestamp if not present
         const newFeedback = {
-          id: data.id || Date.now(),
-          timestamp: data.timestamp || new Date().toISOString(),
-          ...data,
+          id: normalizedData.id || Date.now(),
+          timestamp: normalizedData.timestamp || new Date().toISOString(),
+          ...normalizedData,
         };
         setFeedbackHistory((prev) => [newFeedback, ...prev]);
 

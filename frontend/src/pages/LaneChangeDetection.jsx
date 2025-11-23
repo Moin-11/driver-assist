@@ -8,70 +8,22 @@ import { format } from 'date-fns';
 
 const LaneChangeDetection = () => {
   const navigate = useNavigate();
-  const { addFeedback, getModuleEvents, updateModuleEvents } = useFeedback();
+  const { addFeedback, isConnected, connectionError, feedbackHistory } = useFeedback();
   const moduleName = 'Lane Change Detection';
 
-  // Load events from context on mount
-  const [events, setEvents] = useState(() => getModuleEvents(moduleName));
-  const [isMonitoring, setIsMonitoring] = useState(true);
+  // Get events from feedback history (filtered to this module)
+  const events = feedbackHistory.filter(event => event.module === moduleName).slice(0, 10);
+
   const [currentLane, setCurrentLane] = useState('Center');
 
   const lanes = ['Left', 'Center', 'Right'];
 
-  // Update context whenever events change
+  // Update current lane based on latest event
   useEffect(() => {
-    updateModuleEvents(moduleName, events);
-  }, [events]);
-
-  useEffect(() => {
-    if (!isMonitoring) return;
-
-    const interval = setInterval(() => {
-      // Randomly generate lane change events (30% chance every 5 seconds)
-      if (Math.random() > 0.7) {
-        const signalUsed = Math.random() > 0.3; // 70% chance signal was used
-        const fromLane = currentLane;
-        const possibleLanes = lanes.filter(l => l !== fromLane);
-        const toLane = possibleLanes[Math.floor(Math.random() * possibleLanes.length)];
-
-        const safetyScore = signalUsed ? Math.random() * 30 + 70 : Math.random() * 60 + 20; // 70-100 if signal used, 20-80 otherwise
-
-        const newEvent = {
-          id: Date.now(),
-          time: new Date(),
-          fromLane,
-          toLane,
-          signalUsed,
-          safetyScore: Math.round(safetyScore),
-          message: getLaneChangeMessage(signalUsed, safetyScore, fromLane, toLane),
-          severity: getSeverity(safetyScore, signalUsed),
-        };
-
-        setCurrentLane(toLane);
-        setEvents((prev) => [newEvent, ...prev].slice(0, 10));
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [isMonitoring, currentLane]);
-
-  const getLaneChangeMessage = (signalUsed, score, from, to) => {
-    if (!signalUsed) {
-      return `⚠️ Lane change WITHOUT signal! Moved from ${from} to ${to} lane. Use turn signals!`;
-    } else if (score >= 80) {
-      return `✓ Safe lane change from ${from} to ${to} lane with signal. Good job!`;
-    } else if (score >= 60) {
-      return `⚡ Lane change from ${from} to ${to} with signal. Check blind spots more carefully.`;
-    } else {
-      return `⚠️ Unsafe lane change from ${from} to ${to}! Too close to other vehicles.`;
+    if (events.length > 0 && events[0].toLane) {
+      setCurrentLane(events[0].toLane);
     }
-  };
-
-  const getSeverity = (score, signalUsed) => {
-    if (!signalUsed || score < 50) return 'high';
-    if (score < 70) return 'medium';
-    return 'low';
-  };
+  }, [events]);
 
   const getEventColor = (severity) => {
     switch (severity) {
@@ -140,15 +92,18 @@ const LaneChangeDetection = () => {
 
           <Card className="bg-white">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Status</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600">Connection</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${isMonitoring ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}></div>
                 <span className="text-lg font-semibold">
-                  {isMonitoring ? 'Active' : 'Paused'}
+                  {isConnected ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
+              {connectionError && (
+                <p className="text-xs text-red-600 mt-1">{connectionError}</p>
+              )}
             </CardContent>
           </Card>
 
@@ -184,7 +139,9 @@ const LaneChangeDetection = () => {
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {events.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 text-sm">
-                  Monitoring for lane changes... No changes detected yet.
+                  {isConnected
+                    ? 'Monitoring for lane changes... No changes detected yet.'
+                    : 'Waiting for connection to backend server...'}
                 </div>
               ) : (
                 events.map((event) => (
@@ -203,12 +160,14 @@ const LaneChangeDetection = () => {
                           {event.fromLane} → {event.toLane}
                         </span>
                       </div>
-                      <span className="text-xs">{format(event.time, 'HH:mm:ss')}</span>
+                      <span className="text-xs">
+                        {event.timestamp ? format(new Date(event.timestamp), 'HH:mm:ss') : ''}
+                      </span>
                     </div>
                     <p className="text-sm mb-2">{event.message}</p>
                     <div className="flex gap-4 text-xs text-gray-600">
                       <span>Signal: {event.signalUsed ? '✓ Yes' : '✗ No'}</span>
-                      <span>Safety Score: {event.safetyScore}%</span>
+                      {event.safetyScore !== undefined && <span>Safety Score: {event.safetyScore}%</span>}
                       <span className="uppercase">Severity: {event.severity}</span>
                     </div>
                   </div>

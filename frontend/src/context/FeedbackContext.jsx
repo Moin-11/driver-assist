@@ -20,15 +20,17 @@ const dummyFeedback = [
     message: '⚠️ HARD BRAKING DETECTED at 45 mph! Maintain safe following distance.',
     speed: 45,
     force: 85,
+    severity: 'high',
   },
   {
     id: 1700000002,
     timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), // 4 hours ago
-    module: 'Road Signal Monitoring',
+    module: 'Speed Monitoring',
     eventType: 'Red Light',
     message: '🔴 Red light! Stop before intersection.',
     action: 'STOP',
     distance: 120,
+    severity: 'moderate',
   },
   {
     id: 1700000003,
@@ -48,15 +50,17 @@ const dummyFeedback = [
     message: '⚡ Moderate braking at 55 mph. Monitor traffic ahead.',
     speed: 55,
     force: 60,
+    severity: 'moderate',
   },
   {
     id: 1700000005,
     timestamp: new Date(Date.now() - 3600000 * 10).toISOString(), // 10 hours ago
-    module: 'Road Signal Monitoring',
+    module: 'Speed Monitoring',
     eventType: 'Stop Sign',
     message: '🛑 Stop sign ahead! Come to complete stop.',
     action: 'STOP',
     distance: 85,
+    severity: 'high',
   },
   {
     id: 1700000006,
@@ -76,15 +80,17 @@ const dummyFeedback = [
     message: '✓ Gentle braking at 30 mph. Good control.',
     speed: 30,
     force: 25,
+    severity: 'low',
   },
   {
     id: 1700000008,
     timestamp: new Date(Date.now() - 3600000 * 16).toISOString(), // 16 hours ago
-    module: 'Road Signal Monitoring',
+    module: 'Speed Monitoring',
     eventType: 'School Zone',
     message: '🏫 School zone ahead! Reduce speed to 25 mph.',
     action: 'CAUTION',
     distance: 200,
+    severity: 'low',
   },
 ];
 
@@ -107,10 +113,14 @@ export const FeedbackProvider = ({ children }) => {
     }
     return {
       'Brake Checking': [],
-      'Road Signal Monitoring': [],
+      'Speed Monitoring': [],
       'Lane Change Detection': [],
     };
   });
+
+  // SSE connection state
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
 
   // Save to localStorage whenever feedbackHistory changes
   useEffect(() => {
@@ -121,6 +131,69 @@ export const FeedbackProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('driverAssistModuleStates', JSON.stringify(moduleStates));
   }, [moduleStates]);
+
+  // Establish SSE connection to backend server
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const eventSourceUrl = `${apiUrl}/events`;
+
+    console.log('Connecting to SSE server:', eventSourceUrl);
+
+    const eventSource = new EventSource(eventSourceUrl);
+
+    eventSource.onopen = () => {
+      console.log('SSE connection established');
+      setIsConnected(true);
+      setConnectionError(null);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Received event:', data);
+
+        // Add to feedback history with timestamp if not present
+        const newFeedback = {
+          id: data.id || Date.now(),
+          timestamp: data.timestamp || new Date().toISOString(),
+          ...data,
+        };
+        setFeedbackHistory((prev) => [newFeedback, ...prev]);
+
+        // Also update module-specific state if needed
+        if (data.module) {
+          setModuleStates((prev) => {
+            const moduleName = data.module;
+            const currentModuleEvents = prev[moduleName] || [];
+
+            // Keep last 10 events for each module
+            const updatedEvents = [newFeedback, ...currentModuleEvents].slice(0, 10);
+
+            return {
+              ...prev,
+              [moduleName]: updatedEvents,
+            };
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing SSE event:', error);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      setIsConnected(false);
+      setConnectionError('Connection lost. Retrying...');
+      // EventSource automatically attempts to reconnect
+    };
+
+    // Cleanup on unmount
+    return () => {
+      console.log('Closing SSE connection');
+      eventSource.close();
+      setIsConnected(false);
+    };
+  }, []); // Empty dependency array - connect once on mount
 
   const addFeedback = (feedback) => {
     const newFeedback = {
@@ -169,6 +242,8 @@ export const FeedbackProvider = ({ children }) => {
     getModuleEvents,
     updateModuleEvents,
     clearModuleEvents,
+    isConnected,
+    connectionError,
   };
 
   return (

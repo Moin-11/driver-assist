@@ -1,0 +1,20 @@
+# data.yaml
+
+# Use relative paths, assuming 'datasetobjd' is a folder next to this data.yaml file.
+train: datasetobjd/images/train
+val: datasetobjd/images/val
+test: datasetobjd/images/test
+
+# Number of classes
+nc: 15
+
+# Class names
+names: ['Green Light', 'Red Light', 'Speed Limit 10', 'Speed Limit 100', 'Speed Limit 110', 'Speed Limit 120', 'Speed Limit 20', 'Speed Limit 30', 'Speed Limit 40', 'Speed Limit 50', 'Speed Limit 60', 'Speed Limit 70', 'Speed Limit 80', 'Speed Limit 90', 'Stop']
+
+# Roboflow information (optional, but good to keep)
+roboflow:
+  workspace: selfdriving-car-qtywx
+  project: self-driving-cars-lfjou
+  version: 6
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/selfdriving-car-qtywx/self-driving-cars-lfjou/dataset/6

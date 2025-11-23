@@ -1,0 +1,59 @@
+from picamera2 import Picamera2
+import cv2
+import numpy as np
+import time
+
+picam2 = Picamera2()
+config = picam2.create_video_configuration({"size": (1280, 720)})
+picam2.configure(config)
+picam2.start()
+
+time.sleep(1)
+
+while True:
+    frame = picam2.capture_array()
+
+    # 1. Convert to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # 2. Blur to remove noise
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # 3. Canny edge detector
+    edges = cv2.Canny(blur, 50, 150)
+
+    # 4. Region of interest (triangle)
+    height, width = edges.shape
+    mask = np.zeros_like(edges)
+    
+    polygon = np.array([[
+        (0, height),
+        (width, height),
+        (int(width * 0.5), int(height * 0.55))
+    ]], dtype=np.int32)
+
+    cv2.fillPoly(mask, polygon, 255)
+    roi = cv2.bitwise_and(edges, mask)
+
+    # 5. Hough lines
+    lines = cv2.HoughLinesP(
+        roi,
+        rho=1,
+        theta=np.pi / 180,
+        threshold=50,
+        minLineLength=40,
+        maxLineGap=120
+    )
+
+    # 6. Draw lines
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 4)
+
+    cv2.imshow("Lane Detection", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cv2.destroyAllWindows()

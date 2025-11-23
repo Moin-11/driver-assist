@@ -8,62 +8,39 @@ import { format } from 'date-fns';
 
 const BrakeChecking = () => {
   const navigate = useNavigate();
-  const { addFeedback, getModuleEvents, updateModuleEvents } = useFeedback();
+  const { addFeedback, getModuleEvents, updateModuleEvents, isConnected, connectionError, feedbackHistory } = useFeedback();
   const moduleName = 'Brake Checking';
 
-  // Load events from context on mount
-  const [events, setEvents] = useState(() => getModuleEvents(moduleName));
-  const [isMonitoring, setIsMonitoring] = useState(true);
-  const [speed, setSpeed] = useState(45);
+  // Get events from context (filtered to this module)
+  const [speed, setSpeed] = useState(0);
 
-  // Update context whenever events change
+  // Get module events from feedback history
+  const events = feedbackHistory.filter(event => event.module === moduleName).slice(0, 10);
+
+  // Extract latest speed from recent events or Speed Monitoring events
   useEffect(() => {
-    updateModuleEvents(moduleName, events);
-  }, [events]);
+    // Look for speed updates from GPS or from brake events
+    const latestSpeedEvent = feedbackHistory.find(event =>
+      (event.module === 'Speed Monitoring' && event.speed_mph) ||
+      (event.module === moduleName && event.speed)
+    );
 
-  useEffect(() => {
-    if (!isMonitoring) return;
-
-    const interval = setInterval(() => {
-      // Simulate speed changes
-      const newSpeed = Math.max(0, Math.min(80, speed + (Math.random() * 10 - 5)));
-      setSpeed(Math.round(newSpeed));
-
-      // Randomly generate brake events (20% chance every 3 seconds)
-      if (Math.random() > 0.8) {
-        const brakeForce = Math.random();
-        const eventType = brakeForce > 0.7 ? 'hard' : brakeForce > 0.4 ? 'moderate' : 'light';
-        const newEvent = {
-          id: Date.now(),
-          time: new Date(),
-          type: eventType,
-          speed: Math.round(newSpeed),
-          force: Math.round(brakeForce * 100),
-          message: getBrakeMessage(eventType, newSpeed),
-        };
-        setEvents((prev) => [newEvent, ...prev].slice(0, 10));
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [isMonitoring, speed]);
-
-  const getBrakeMessage = (type, currentSpeed) => {
-    if (type === 'hard') {
-      return `⚠️ HARD BRAKING DETECTED at ${currentSpeed} mph! Maintain safe following distance.`;
-    } else if (type === 'moderate') {
-      return `⚡ Moderate braking at ${currentSpeed} mph. Monitor traffic ahead.`;
-    } else {
-      return `✓ Gentle braking at ${currentSpeed} mph. Good control.`;
+    if (latestSpeedEvent) {
+      const currentSpeed = latestSpeedEvent.speed_mph || latestSpeedEvent.speed || 0;
+      setSpeed(Math.round(currentSpeed));
     }
-  };
+  }, [feedbackHistory, moduleName]);
 
-  const getEventColor = (type) => {
+  const getEventColor = (eventType) => {
+    // Handle both 'type' and 'eventType' fields
+    const type = eventType || 'light';
     switch (type) {
       case 'hard':
         return 'bg-red-100 border-red-500 text-red-900';
       case 'moderate':
         return 'bg-yellow-100 border-yellow-500 text-yellow-900';
+      case 'behavior_change':
+        return 'bg-orange-100 border-orange-500 text-orange-900';
       default:
         return 'bg-green-100 border-green-500 text-green-900';
     }
@@ -77,6 +54,7 @@ const BrakeChecking = () => {
         message: event.message,
         speed: event.speed,
         force: event.force,
+        severity: event.severity,
       });
     });
     alert('All brake events saved to feedback history!');
@@ -124,15 +102,18 @@ const BrakeChecking = () => {
 
           <Card className="bg-white">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Monitoring Status</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-600">Connection Status</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${isMonitoring ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}></div>
                 <span className="text-lg font-semibold">
-                  {isMonitoring ? 'Active' : 'Paused'}
+                  {isConnected ? 'Connected' : 'Disconnected'}
                 </span>
               </div>
+              {connectionError && (
+                <p className="text-xs text-red-600 mt-1">{connectionError}</p>
+              )}
             </CardContent>
           </Card>
 
@@ -154,22 +135,29 @@ const BrakeChecking = () => {
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {events.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 text-sm">
-                  Monitoring for brake events... No events detected yet.
+                  {isConnected
+                    ? 'Monitoring for brake events... No events detected yet.'
+                    : 'Waiting for connection to backend server...'}
                 </div>
               ) : (
                 events.map((event) => (
                   <div
                     key={event.id}
-                    className={`p-4 rounded-lg border-l-4 ${getEventColor(event.type)}`}
+                    className={`p-4 rounded-lg border-l-4 ${getEventColor(event.eventType)}`}
                   >
                     <div className="flex justify-between items-start mb-1">
-                      <span className="font-bold text-sm uppercase">{event.type} BRAKE</span>
-                      <span className="text-xs">{format(event.time, 'HH:mm:ss')}</span>
+                      <span className="font-bold text-sm uppercase">
+                        {event.eventType ? `${event.eventType} BRAKE` : 'EVENT'}
+                      </span>
+                      <span className="text-xs">
+                        {event.timestamp ? format(new Date(event.timestamp), 'HH:mm:ss') : ''}
+                      </span>
                     </div>
                     <p className="text-sm mb-2">{event.message}</p>
                     <div className="flex gap-4 text-xs text-gray-600">
-                      <span>Force: {event.force}%</span>
-                      <span>Speed: {event.speed} mph</span>
+                      {event.force && <span>Force: {event.force}%</span>}
+                      {event.speed && <span>Speed: {event.speed} mph</span>}
+                      {event.behavior_type && <span>Behavior: {event.behavior_type}</span>}
                     </div>
                   </div>
                 ))

@@ -1,0 +1,15 @@
+# Root directory where your data is stored.
+# I will assume your images/labels are in a sub-directory named 'ts_dataset' 
+# relative to your current project folder.
+path: C:\Users\Lenovo\OneDrive - aus.edu\FALL 25\SENIOR 2\iades\ts_dataset 
+
+# Paths to the training and validation image directories (relative to the 'path' above)
+# This assumes your images are structured like: ts_dataset/images/train/ and ts_dataset/images/val/
+train: images/train 
+val: images/val 
+
+# Number of classes
+nc: 4
+
+# Class names (from your uploaded 'classes.names')
+names: ['prohibitory', 'danger', 'mandatory', 'other']

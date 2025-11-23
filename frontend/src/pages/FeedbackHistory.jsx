@@ -1,19 +1,24 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useFeedback } from '@/context/FeedbackContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { History, ArrowLeft, Trash2, AlertCircle, Eye, Navigation } from 'lucide-react';
+import { History, ArrowLeft, Trash2, AlertCircle, Eye, Navigation, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 
 const FeedbackHistory = () => {
   const navigate = useNavigate();
   const { feedbackHistory, clearHistory, deleteFeedback } = useFeedback();
 
+  // Filter state
+  const [selectedModules, setSelectedModules] = useState(['Brake Checking', 'Speed Monitoring', 'Lane Change Detection']);
+  const [selectedSeverities, setSelectedSeverities] = useState(['low', 'moderate', 'high']);
+
   const getModuleIcon = (module) => {
     switch (module) {
       case 'Brake Checking':
         return <AlertCircle className="w-6 h-6 text-red-500" />;
-      case 'Road Signal Monitoring':
+      case 'Speed Monitoring':
         return <Eye className="w-6 h-6 text-yellow-600" />;
       case 'Lane Change Detection':
         return <Navigation className="w-6 h-6 text-green-600" />;
@@ -22,13 +27,13 @@ const FeedbackHistory = () => {
     }
   };
 
-  const getModuleColor = (module) => {
-    switch (module) {
-      case 'Brake Checking':
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case 'high':
         return 'bg-red-100 border-red-500 text-red-900';
-      case 'Road Signal Monitoring':
+      case 'moderate':
         return 'bg-yellow-100 border-yellow-500 text-yellow-900';
-      case 'Lane Change Detection':
+      case 'low':
         return 'bg-green-100 border-green-500 text-green-900';
       default:
         return 'bg-blue-100 border-blue-500 text-blue-900';
@@ -47,7 +52,30 @@ const FeedbackHistory = () => {
     }
   };
 
-  const groupedByModule = feedbackHistory.reduce((acc, item) => {
+  const toggleModule = (module) => {
+    setSelectedModules(prev =>
+      prev.includes(module)
+        ? prev.filter(m => m !== module)
+        : [...prev, module]
+    );
+  };
+
+  const toggleSeverity = (severity) => {
+    setSelectedSeverities(prev =>
+      prev.includes(severity)
+        ? prev.filter(s => s !== severity)
+        : [...prev, severity]
+    );
+  };
+
+  // Apply filters
+  const filteredHistory = feedbackHistory.filter(item => {
+    const moduleMatch = selectedModules.includes(item.module);
+    const severityMatch = item.severity ? selectedSeverities.includes(item.severity) : true;
+    return moduleMatch && severityMatch;
+  });
+
+  const groupedByModule = filteredHistory.reduce((acc, item) => {
     if (!acc[item.module]) {
       acc[item.module] = [];
     }
@@ -56,10 +84,10 @@ const FeedbackHistory = () => {
   }, {});
 
   const stats = {
-    total: feedbackHistory.length,
-    braking: feedbackHistory.filter(f => f.module === 'Brake Checking').length,
-    signals: feedbackHistory.filter(f => f.module === 'Road Signal Monitoring').length,
-    lanes: feedbackHistory.filter(f => f.module === 'Lane Change Detection').length,
+    total: filteredHistory.length,
+    braking: filteredHistory.filter(f => f.module === 'Brake Checking').length,
+    signals: filteredHistory.filter(f => f.module === 'Speed Monitoring').length,
+    lanes: filteredHistory.filter(f => f.module === 'Lane Change Detection').length,
   };
 
   return (
@@ -93,6 +121,93 @@ const FeedbackHistory = () => {
             </Button>
           )}
         </div>
+
+        <Card className="bg-white mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Filter className="w-5 h-5" />
+              Filter Events
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-semibold text-sm mb-3 text-gray-700">Module Type</h3>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedModules.includes('Brake Checking')}
+                      onChange={() => toggleModule('Brake Checking')}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm">Brake Checking</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedModules.includes('Speed Monitoring')}
+                      onChange={() => toggleModule('Speed Monitoring')}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm">Speed Monitoring</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedModules.includes('Lane Change Detection')}
+                      onChange={() => toggleModule('Lane Change Detection')}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm">Lane Change Detection</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold text-sm mb-3 text-gray-700">Severity Level</h3>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedSeverities.includes('low')}
+                      onChange={() => toggleSeverity('low')}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm flex items-center gap-2">
+                      Low
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-300">LOW</span>
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedSeverities.includes('moderate')}
+                      onChange={() => toggleSeverity('moderate')}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm flex items-center gap-2">
+                      Moderate
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">MODERATE</span>
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedSeverities.includes('high')}
+                      onChange={() => toggleSeverity('high')}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm flex items-center gap-2">
+                      High
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 border border-red-300">HIGH</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card className="bg-white">
@@ -166,7 +281,7 @@ const FeedbackHistory = () => {
                     {items.map((item) => (
                       <div
                         key={item.id}
-                        className={`p-5 rounded-lg border-l-4 ${getModuleColor(module)} flex justify-between items-start`}
+                        className={`p-5 rounded-lg border-l-4 ${getSeverityColor(item.severity)} flex justify-between items-start`}
                       >
                         <div className="flex-1">
                           <div className="flex justify-between items-start mb-2">

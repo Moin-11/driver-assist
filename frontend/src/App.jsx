@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import BrakeChecking from './pages/BrakeChecking';
-import RoadSignalMonitoring from './pages/RoadSignalMonitoring';
+import SpeedMonitoring from './pages/SpeedMonitoring';
 import LaneChangeDetection from './pages/LaneChangeDetection';
 import FeedbackHistory from './pages/FeedbackHistory';
 
@@ -40,10 +40,10 @@ function App() {
             }
           />
           <Route
-            path="/road-signal-monitoring"
+            path="/speed-monitoring"
             element={
               isAuthenticated ?
-                <RoadSignalMonitoring /> :
+                <SpeedMonitoring /> :
                 <Navigate to="/login" />
             }
           />

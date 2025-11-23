@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+
+import smbus
+import time
+
+# ---------------------------------------------------------------------
+# USER SETTINGS (change these!)
+# ---------------------------------------------------------------------
+
+FORWARD_AXIS = "y"         # choose: "x" or "y"
+THRESHOLD_G = -0.40        # braking threshold (negative)
+MIN_DURATION_S = 0.15      # must stay below threshold for this long
+
+# ---------------------------------------------------------------------
+# MPU6050 CONSTANTS
+# ---------------------------------------------------------------------
+
+MPU_ADDR = 0x68
+PWR_MGMT_1 = 0x6B
+ACCEL_XOUT_H = 0x3B
+
+bus = smbus.SMBus(1)
+
+# ---------------------------------------------------------------------
+# MPU6050 SETUP
+# ---------------------------------------------------------------------
+
+def mpu_init():
+    time.sleep(0.1)
+    bus.write_byte_data(MPU_ADDR, PWR_MGMT_1, 0)  # wake up sensor
+    time.sleep(0.1)
+
+def read_word(reg):
+    try:
+        data = bus.read_i2c_block_data(MPU_ADDR, reg, 2)
+    except OSError:
+        # retry once after short delay
+        time.sleep(0.02)
+        data = bus.read_i2c_block_data(MPU_ADDR, reg, 2)
+
+    value = (data[0] << 8) | data[1]
+    if value >= 0x8000:
+        value = -((65535 - value) + 1)
+    return value
+
+def read_accel_raw():
+    ax = read_word(ACCEL_XOUT_H)
+    ay = read_word(ACCEL_XOUT_H + 4)
+    az = read_word(ACCEL_XOUT_H + 8)
+    return ax, ay, az
+
+def read_accel_g():
+    ax, ay, az = read_accel_raw()
+    return ax / 16384.0, ay / 16384.0, az / 16384.0
+
+# ---------------------------------------------------------------------
+# CALIBRATION
+# ---------------------------------------------------------------------
+
+def calibrate(axis="y", samples=100):
+    print(f"Calibrating {axis}-axis... keep still.")
+    total = 0.0
+    for _ in range(samples):
+        ax, ay, _ = read_accel_g()
+        total += ay if axis == "y" else ax
+        time.sleep(0.01)
+    offset = total / samples
+    print(f"Offset for {axis}-axis = {offset:.3f} g")
+    return offset
+
+# ---------------------------------------------------------------------
+# MAIN LOOP
+# ---------------------------------------------------------------------
+
+if __name__ == "__main__":
+    mpu_init()
+    
+    
+    offset = calibrate(FORWARD_AXIS)
+
+    print(f"\nMonitoring harsh braking on {FORWARD_AXIS}-axis...")
+    print("Press Ctrl+C to stop.\n")
+
+    below_since = None  # timer for threshold duration
+
+    while True:
+        ax, ay, az = read_accel_g()
+        accel = (ay - offset) if FORWARD_AXIS == "y" else (ax - offset)
+
+        # Check threshold
+        if accel < THRESHOLD_G:
+            if below_since is None:
+                below_since = time.time()
+            else:
+                if (time.time() - below_since) >= MIN_DURATION_S:
+                    print(f"[HARSH BRAKE] accel={accel:.3f} g")
+                    below_since = None   # reset after detection
+        else:
+            below_since = None
+
+        time.sleep(0.02)  # 50 Hz sampling

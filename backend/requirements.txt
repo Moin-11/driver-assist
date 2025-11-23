@@ -25,3 +25,7 @@ adafruit-circuitpython-mpu6050>=2.0.0
 opencv-python>=4.8.0
 ultralytics>=8.2.0
 
+#server
+uvicorn[standard]==0.30.0
+sse-starlette==2.1.0
+python-multipart==0.0.9
